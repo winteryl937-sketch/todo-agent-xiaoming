@@ -1,7 +1,19 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ChatMessage } from "../shared/chat.ts";
 
 const examplePrompts = ["提醒我买牛奶", "看看我的待办"];
+
+async function copyText(text: string) {
+  if (navigator.clipboard?.writeText) return navigator.clipboard.writeText(text);
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.style.position = "fixed";
+  textarea.style.opacity = "0";
+  document.body.append(textarea);
+  textarea.select();
+  document.execCommand("copy");
+  textarea.remove();
+}
 
 interface ChatHistoryProps {
   messages: ChatMessage[];
@@ -11,6 +23,7 @@ interface ChatHistoryProps {
 
 export function ChatHistory({ messages, pending, onSelectPrompt }: ChatHistoryProps) {
   const viewport = useRef<HTMLDivElement>(null);
+  const [copiedIndex, setCopiedIndex] = useState<number>();
   useEffect(() => {
     if (viewport.current) viewport.current.scrollTop = viewport.current.scrollHeight;
   }, [messages, pending]);
@@ -36,7 +49,20 @@ export function ChatHistory({ messages, pending, onSelectPrompt }: ChatHistoryPr
           {messages.map((message, index) => (
             <div key={index} className={`message ${message.role}`}>
               <small>{message.role === "user" ? "你" : "小明智能体"}</small>
-              <div>{message.content}</div>
+              <div className="bubble">{message.content}</div>
+              {message.role === "assistant" && (
+                <button
+                  className="copy-message"
+                  aria-label="复制小明的回复"
+                  onClick={async () => {
+                    await copyText(message.content);
+                    setCopiedIndex(index);
+                    window.setTimeout(() => setCopiedIndex(undefined), 1600);
+                  }}
+                >
+                  {copiedIndex === index ? "已复制" : "复制内容"}
+                </button>
+              )}
             </div>
           ))}
           {pending && <p role="status">正在回复…</p>}

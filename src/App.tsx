@@ -2,6 +2,7 @@ import { useRef, useState, type KeyboardEvent } from "react";
 import type { ChatMessage } from "../shared/chat.ts";
 import { requestReply } from "./chat-client.ts";
 import { ChatHistory } from "./ChatHistory.tsx";
+import { downloadTaskListImage } from "./task-image.ts";
 
 function isSendShortcut(event: KeyboardEvent<HTMLTextAreaElement>) {
   // 中文输入法会用 Enter 确认选词，部分浏览器此时只报告键码 229。
@@ -9,11 +10,16 @@ function isSendShortcut(event: KeyboardEvent<HTMLTextAreaElement>) {
   return event.key === "Enter" && !event.shiftKey && !composing;
 }
 
+function needsDeletionConfirmation(answer: string) {
+  return answer.includes("请回复“确认删除”") && answer.includes("“取消”");
+}
+
 export default function App() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
+  const [exporting, setExporting] = useState<"image" | "word" | null>(null);
   const input = useRef<HTMLTextAreaElement>(null);
 
   async function send(text: string) {
@@ -26,7 +32,19 @@ export default function App() {
     setError("");
     try {
       const answer = await requestReply(outgoing);
-      setMessages([...outgoing, { role: "assistant", content: answer }]);
+      if (needsDeletionConfirmation(answer)) {
+        const description = answer.replace(/。?请回复“确认删除”[^。]*“取消”。?/, "");
+        const confirmed = window.confirm(`${description}\n\n是否确定执行？`);
+        const confirmationMessages: ChatMessage[] = [
+          ...outgoing,
+          { role: "assistant", content: answer },
+          { role: "user", content: confirmed ? "确认删除" : "取消" },
+        ];
+        const result = await requestReply(confirmationMessages);
+        setMessages([...outgoing, { role: "assistant", content: result }]);
+      } else {
+        setMessages([...outgoing, { role: "assistant", content: answer }]);
+      }
     } catch (cause) {
       setMessages(messages);
       setDraft(text);
@@ -43,6 +61,45 @@ export default function App() {
         <img src="/logo.png" alt="" />
         <strong>TokeNow</strong>
         <span>小明智能体</span>
+        <div className="export-actions" aria-label="导出清单">
+          <button
+            className="export"
+            disabled={exporting !== null}
+            onClick={async () => {
+              setExporting("image");
+              setError("");
+              try {
+                await downloadTaskListImage();
+              } catch (cause) {
+                setError(cause instanceof Error ? `导出失败：${cause.message}` : "导出图片失败。");
+              } finally {
+                setExporting(null);
+              }
+            }}
+          >
+            {exporting === "image" ? "正在导出…" : "导出图片"}
+          </button>
+          <button
+            className="export"
+            disabled={exporting !== null}
+            onClick={async () => {
+              setExporting("word");
+              setError("");
+              try {
+                const { downloadTaskListWord } = await import("./task-word.ts");
+                await downloadTaskListWord();
+              } catch (cause) {
+                setError(
+                  cause instanceof Error ? `导出失败：${cause.message}` : "导出 Word 失败。",
+                );
+              } finally {
+                setExporting(null);
+              }
+            }}
+          >
+            {exporting === "word" ? "正在导出…" : "导出 Word"}
+          </button>
+        </div>
       </header>
       <main>
         <ChatHistory messages={messages} pending={pending} onSelectPrompt={send} />

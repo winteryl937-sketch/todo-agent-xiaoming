@@ -69,7 +69,27 @@ test("任务 API 拒绝无效输入并区分不存在的任务", async (t) => {
   assert.equal((await request("POST", "/api/tasks", { title: " " })).status, 400);
   assert.equal((await request("PATCH", "/api/tasks/missing", {})).status, 400);
   assert.equal((await request("PATCH", "/api/tasks/missing", { done: true })).status, 404);
+  assert.equal((await request("PATCH", "/api/tasks/missing", { priority: "urgent" })).status, 400);
   assert.equal((await request("DELETE", "/api/tasks/missing")).status, 404);
+});
+
+test("任务 API 支持截止时间、父任务和调整顺序", async (t) => {
+  const { request } = await startTestApp(t);
+  const parent = (await request("POST", "/api/tasks", { title: "写报告", deadline: "2026-12-10" }))
+    .body;
+  const child = (await request("POST", "/api/tasks", { title: "整理数据", parentId: parent.id }))
+    .body;
+  assert.equal(child.parentId, parent.id);
+  assert.equal(parent.deadline, "2026-12-10");
+  const prioritized = await request("PATCH", `/api/tasks/${parent.id}`, { priority: "high" });
+  assert.equal(prioritized.body.priority, "high");
+  const moved = await request("POST", `/api/tasks/${child.id}/move`, { position: 0 });
+  assert.equal(moved.status, 200);
+  assert.equal(moved.body[0].id, child.id);
+  assert.equal(
+    (await request("POST", "/api/tasks", { title: "无效", parentId: "missing" })).status,
+    400,
+  );
 });
 
 test("更新已有 JSON 清单时保留其他任务和扩展字段", async (t) => {

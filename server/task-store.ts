@@ -3,16 +3,34 @@ import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "
 import { dirname } from "node:path";
 import { z } from "zod";
 
-const storedTask = z.looseObject({ id: z.string(), title: z.string(), done: z.boolean() });
+const storedTask = z.looseObject({
+  id: z.string(),
+  title: z.string(),
+  done: z.boolean(),
+  deadline: z.string().date().nullable().optional(),
+  parentId: z.string().nullable().optional(),
+  priority: z
+    .union([z.enum(["high", "medium", "low"]), z.number()])
+    .nullable()
+    .optional(),
+});
 const taskList = z.array(storedTask);
 type Task = z.infer<typeof storedTask>;
-type TaskChanges = Partial<Pick<Task, "title" | "done">>;
+type Priority = "high" | "medium" | "low";
+type TaskChanges = Partial<Pick<Task, "title" | "done" | "deadline" | "parentId">> & {
+  priority?: Priority | null;
+};
+type NewTask = Pick<Task, "title"> &
+  Partial<Pick<Task, "deadline" | "parentId">> & {
+    priority?: Priority | null;
+  };
 
 export interface TaskStore {
   list(): Task[];
-  create(title: string): Task;
+  create(input: string | NewTask): Task;
   update(id: string, changes: TaskChanges): Task | undefined;
   remove(id: string): boolean;
+  move(id: string, position: number): Task[] | undefined;
 }
 
 export function createJsonTaskStore(filename: string): TaskStore {
@@ -32,8 +50,9 @@ export function createJsonTaskStore(filename: string): TaskStore {
   return {
     list,
 
-    create(title) {
-      const task = { id: randomUUID(), title, done: false };
+    create(input) {
+      const details = typeof input === "string" ? { title: input } : input;
+      const task: Task = { id: randomUUID(), ...details, done: false };
       save([...list(), task]);
       return task;
     },
@@ -50,11 +69,33 @@ export function createJsonTaskStore(filename: string): TaskStore {
 
     remove(id) {
       const tasks = list();
-      const remaining = tasks.filter((task) => task.id !== id);
+      const removed = new Set([id]);
+      let changed = true;
+      while (changed) {
+        changed = false;
+        for (const task of tasks) {
+          if (task.parentId && removed.has(task.parentId) && !removed.has(task.id)) {
+            removed.add(task.id);
+            changed = true;
+          }
+        }
+      }
+      const remaining = tasks.filter((task) => !removed.has(task.id));
       if (remaining.length === tasks.length) return false;
 
       save(remaining);
       return true;
+    },
+
+    move(id, position) {
+      const tasks = list();
+      const current = tasks.findIndex((task) => task.id === id);
+      if (current < 0) return undefined;
+      const [task] = tasks.splice(current, 1);
+      const target = Math.max(0, Math.min(position, tasks.length));
+      tasks.splice(target, 0, task);
+      save(tasks);
+      return tasks;
     },
   };
 }

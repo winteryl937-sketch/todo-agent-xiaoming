@@ -27,7 +27,7 @@ export function createApp({ reply, tasks }: AppDependencies) {
   app.use(handleApiError);
 
   app.use(express.static(resolve("public")));
-  app.get("/assets/chat.js", (_req, res) => res.sendFile(resolve("dist/chat.js")));
+  app.use("/assets", express.static(resolve("dist")));
   return app;
 }
 

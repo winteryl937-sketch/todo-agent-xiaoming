@@ -53,6 +53,28 @@ header span {
   font-size: 14px;
   color: #515c71;
 }
+.export-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.export {
+  border: 1px solid #cdd5e4;
+  border-radius: 10px;
+  padding: 8px 14px;
+  color: #30415d;
+  background: #fff;
+  font-size: 14px;
+}
+.export:hover:not(:disabled) {
+  border-color: #1643e7;
+  color: #1643e7;
+}
+.export:disabled {
+  cursor: default;
+  opacity: 0.65;
+}
 main {
   flex: 1;
   min-height: 0;
@@ -126,7 +148,7 @@ h1 {
   font-size: 12px;
   color: #637086;
 }
-.message div {
+.message .bubble {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   padding: 13px 17px;
@@ -143,10 +165,24 @@ h1 {
   display: block;
   text-align: right;
 }
-.user div {
+.user .bubble {
   background: #eaf0ff;
   border-color: #dce5ff;
   border-radius: 16px 4px 16px 16px;
+}
+.copy-message {
+  display: block;
+  margin: 7px 4px 0;
+  padding: 3px 7px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #667289;
+  font-size: 12px;
+}
+.copy-message:hover {
+  color: #1643e7;
+  background: #edf1fb;
 }
 .compose {
   padding: 12px 0 max(18px, env(safe-area-inset-bottom));
